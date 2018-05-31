@@ -1,5 +1,8 @@
 # Emacs Thread-based Generator Library
 
+Full article:
+[Emacs 26 Brings Generators and Threads](http://nullprogram.com/blog/2018/05/31/)
+
 This is a proof-of-concept generator library built on top of Emacs 26
 threads. **Do not actually use this library.** It's about five times
 slower than the built-in `iter` package, and is prone to deadlocks.
