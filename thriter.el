@@ -125,6 +125,10 @@ Requires lexical scope."
          (setf ,(car var-and-iter) (cdr ,result-sym))
          ,@body))))
 
+(defun thriter-yield-from (iter)
+  (thriter-do (v iter)
+    (thriter-yield v)))
+
 (provide 'thriter)
 
 ;;; thriter.el ends here

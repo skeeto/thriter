@@ -14,6 +14,12 @@
   (dolist (e list)
     (thriter-yield e)))
 
+(thriter-defun mix-generator (list)
+  (let ((n 0))
+    (dolist (e list)
+      (thriter-yield e)
+      (thriter-yield-from (counter-generator (cl-incf n))))))
+
 (ert-deftest thriter ()
   (let ((iter (counter-generator 10)))
     (should (equal (number-sequence 0 9)
@@ -27,6 +33,14 @@
       (push v result))
     (should (equal (number-sequence 0 8)
                    (nreverse result)))))
+
+(ert-deftest thriter-yield-from ()
+  (let ((result ()))
+    (thriter-do (v (mix-generator '(:a :b :c)))
+      (push v result))
+    (setf result (nreverse result))
+    (should (equal '(:a 0 :b 0 1 :c 0 1 2)
+                   result))))
 
 (ert-deftest thriter-close ()
   (let* ((iter (list-generator (list :a :b :c)))
