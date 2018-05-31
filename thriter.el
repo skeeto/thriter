@@ -16,8 +16,7 @@
   (result-iterator nil)
   (condvar-caller nil :read-only t)
   (waiting-caller t)
-  (result-caller nil)
-  (box nil :read-only t))
+  (result-caller nil))
 
 (defvar thriter--state)
 
@@ -30,8 +29,7 @@
     (thriter--create-1
      :mutex mutex
      :condvar-iterator (make-condition-variable mutex)
-     :condvar-caller (make-condition-variable mutex)
-     :box (cons nil nil))))
+     :condvar-caller (make-condition-variable mutex))))
 
 (defun thriter--make-finalizer (thread)
   "Create a finalizer to destroy the iterator running in THREAD."
@@ -68,14 +66,10 @@ is the actual return value."
       (while (thriter--waiting-caller state)
         (condition-wait (thriter--condvar-caller state)))
       (setf (thriter--waiting-caller state) t)
-      (let ((result (thriter--result-caller state))
-            (box (thriter--box state)))
-        (prog1 box
-          (if (eq result thriter--done)
-              (setf (car box) nil
-                    (cdr box) nil)
-            (setf (car box) t
-                  (cdr box) result)))))))
+      (let ((result (thriter--result-caller state)))
+        (if (eq result thriter--done)
+            (cons nil nil)
+          (cons t result))))))
 
 (defun thriter-yield (value)
   "When inside an iterator, yield VALUE to the caller."
