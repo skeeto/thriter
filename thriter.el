@@ -11,7 +11,7 @@
                         (:copier nil))
   (thread nil)
   (mutex nil :read-only t)
-  (condvar-iterator nil :read-only t)
+  (condvar-iterator nil)
   (waiting-iterator t)
   (result-iterator nil)
   (condvar-caller nil :read-only t)
@@ -19,9 +19,6 @@
   (result-caller nil))
 
 (defvar thriter--state)
-
-(defvar thriter--done (make-symbol "done")
-  "Sentinel value returned by an iterator when it completes.")
 
 (defun thriter--create ()
   "Create a fresh iterator state without a thread."
@@ -47,8 +44,12 @@
                  (condition-wait (thriter--condvar-iterator state)))
                (setf (thriter--waiting-iterator state) t))
              ;; Start iterator
-             (apply func args)
-             (thriter-yield thriter--done)))))
+             (let ((result (apply func args)))
+               (with-mutex (thriter--mutex state)
+                 (setf (thriter--condvar-iterator state) result
+                       (thriter--result-caller state) state
+                       (thriter--waiting-caller state) nil)
+                 (condition-notify (thriter--condvar-caller state))))))))
   (cons state
         (thriter--make-finalizer (thriter--thread state))))
 
@@ -57,7 +58,8 @@
 
 The return value is a cons cell. The car indicates if the
 iterator returned a value (t) or if it completed (nil). The cdr
-is the actual return value."
+is the actual return value. If the iterator completes, the return
+value is the return value of the generator function itself."
   (let ((state (car iter)))
     (with-mutex (thriter--mutex state)
       (setf (thriter--result-iterator state) yield-result
@@ -67,8 +69,8 @@ is the actual return value."
         (condition-wait (thriter--condvar-caller state)))
       (setf (thriter--waiting-caller state) t)
       (let ((result (thriter--result-caller state)))
-        (if (eq result thriter--done)
-            (cons nil nil)
+        (if (eq result state)
+            (cons nil (thriter--condvar-iterator state))
           (cons t result))))))
 
 (defun thriter-yield (value)
@@ -108,7 +110,8 @@ Requires lexical scope."
     (thread-join thread)))
 
 (defmacro thriter-do (var-and-iter &rest body)
-  "Like `dolist', but for iterators."
+  "Like `dolist', but for iterators.
+Returns the return value of the generator function."
   (declare (indent defun))
   (let ((result-sym (make-symbol "result"))
         (iter-sym (make-symbol "iter")))
@@ -117,9 +120,13 @@ Requires lexical scope."
             (,(car var-and-iter)))
        (while (car (setf ,result-sym (thriter-next ,iter-sym)))
          (setf ,(car var-and-iter) (cdr ,result-sym))
-         ,@body))))
+         ,@body)
+       (with-no-warnings
+         (cdr ,result-sym)))))
 
 (defun thriter-yield-from (iter)
+  "Delegate to another iterator, yield each of its values.
+Returns the return value of the delegatee generator function. "
   (thriter-do (v iter)
     (thriter-yield v)))
 

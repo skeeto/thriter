@@ -7,8 +7,9 @@
 (require 'generator)
 
 (thriter-defun counter-generator (n)
-  (dotimes (i n)
-    (thriter-yield i)))
+  (prog1 n
+    (dotimes (i n)
+      (thriter-yield i))))
 
 (thriter-defun list-generator (list)
   (dolist (e list)
@@ -28,11 +29,13 @@
                             collect (cdr i))))))
 
 (ert-deftest thriter-do ()
-  (let ((result ()))
-    (thriter-do (v (counter-generator 9))
-      (push v result))
+  (let* ((outputs ())
+         (result
+          (thriter-do (v (counter-generator 9))
+            (push v outputs))))
     (should (equal (number-sequence 0 8)
-                   (nreverse result)))))
+                   (nreverse outputs)))
+    (should (equal result 9))))
 
 (ert-deftest thriter-yield-from ()
   (let ((result ()))
